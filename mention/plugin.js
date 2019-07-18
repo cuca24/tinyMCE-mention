@@ -395,16 +395,15 @@
                 if (delimiterIndex() > -1 && prevCharIsSpace()) {
                     if (autoComplete === undefined || (autoComplete.hasFocus !== undefined && !autoComplete.hasFocus)) {
                         e.preventDefault();
-                        // Clone options object and set the used delimiter.
 
-                        var editorRange = ed.selection.getRng(); // get range object for the current caret position
+                        var editorRange = ed.selection.getRng();
 
-                        var node = editorRange.commonAncestorContainer; // relative node to the selection
+                        var node = editorRange.commonAncestorContainer; 
 
-                        var range = document.createRange(); // create a new range object for the deletion
+                        var range = document.createRange();
                         range.selectNodeContents(node);
-                        range.setStart(node, editorRange.endOffset - 1); // current caret pos - 3
-                        range.setEnd(node, editorRange.endOffset); // current caret pos
+                        range.setStart(node, editorRange.endOffset - 1);
+                        range.setEnd(node, editorRange.endOffset);
                         range.deleteContents();
 
                         ed.focus();
