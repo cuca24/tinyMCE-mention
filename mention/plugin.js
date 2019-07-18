@@ -40,10 +40,7 @@
             items: 10
         }, options);
 
-        this.options.insertFrom = this.options.insertFrom || this.options.queryBy;
-
         this.matcher = this.options.matcher || this.matcher;
-        this.sorter = this.options.sorter || this.sorter;
         this.renderDropdown = this.options.renderDropdown || this.renderDropdown;
         this.render = this.options.render || this.render;
         this.insert = this.options.insert || this.insert;
@@ -55,6 +52,8 @@
         this.renderInput();
 
         this.bindEvents();
+        this.show();
+        this.lookup();
     };
 
     AutoComplete.prototype = {
@@ -186,10 +185,6 @@
         lookup: function () {
             this.query = $.trim($(this.editor.getBody()).find('#autocomplete-searchtext').text()).replace('\ufeff', '');
 
-            if (this.$dropdown === undefined) {
-                this.show();
-            }
-
             clearTimeout(this.searchTimeout);
             this.searchTimeout = setTimeout($.proxy(function () {
                 // Added delimiter parameter as last argument for backwards compatibility.
@@ -256,7 +251,7 @@
             items = items.slice(0, this.options.items);
 
             $.each(items, function (i, item) {
-                var $element = $(_this.render(item, i));
+                var $element = $(_this.render(item));
 
                 $element.html($element.html().replace($element.text(), _this.highlighter($element.text())));
 
@@ -271,7 +266,6 @@
                 this.$dropdown.html(result.join('')).show();
             } else {
                 this.$dropdown.hide();
-                this.$dropdown.find('li').removeClass('active');
             }
         },
 
@@ -279,7 +273,7 @@
             return '<ul class="rte-autocomplete dropdown-menu"><li class="loading"></li></ul>';
         },
 
-        render: function (item, index) {
+        render: function (item) {
             return '<li>' +
                         '<a href="javascript:;"><span>' + item[this.options.queryBy] + '</span></a>' +
                     '</li>';
@@ -317,7 +311,7 @@
         },
 
         insert: function (item) {
-            return '<span>' + item[this.options.insertFrom] + '</span>&nbsp;';
+            return '<span>' + item[this.options.queryBy] + '</span>&nbsp;';
         },
 
         cleanUp: function (rollback) {
@@ -331,13 +325,8 @@
 
             if (rollback) {
                 var text = this.query,
-                    $selection = $(this.editor.dom.select('span#autocomplete'));
-
-                if (!$selection.length) {
-                    return;
-                }
-                    
-                var replacement = $('<p>' + this.options.delimiter + text + '</p>')[0].firstChild,
+                    $selection = $(this.editor.dom.select('span#autocomplete')),
+                    replacement = $('<p>' + this.options.delimiter + text + '</p>')[0].firstChild,
                     focus = $(this.editor.selection.getNode()).offset().top === ($selection.offset().top + (($selection.outerHeight() - $selection.height()) / 2));
 
                 this.editor.dom.replace(replacement, $selection[0]);
@@ -385,22 +374,45 @@
             function prevCharIsSpace() {
                 var start = ed.selection.getRng(true).startOffset,
                       text = ed.selection.getRng(true).startContainer.data || '',
-                      charachter = text.substr(start > 0 ? start - 1 : 0, 1);
+                      charachter = text.substr(start - 2, 1);
+
+                if (text.length === 1) {
+                    return true;
+                }
 
                 return (!!$.trim(charachter).length) ? false : true;
             }
 
-            ed.on('keypress', function (e) {
-                var delimiterIndex = $.inArray(String.fromCharCode(e.which || e.keyCode), autoCompleteData.delimiter);
-                if (delimiterIndex > -1 && prevCharIsSpace()) {
+            function delimiterIndex() {
+                var start = ed.selection.getRng(true).startOffset,
+                    text = ed.selection.getRng(true).startContainer.data || '',
+                    charachter = text.substr(start - 1, 1);
+
+                return autoCompleteData.delimiter.indexOf(charachter);
+            }
+
+            ed.on('keyup', function (e) {
+                if (delimiterIndex() > -1 && prevCharIsSpace()) {
                     if (autoComplete === undefined || (autoComplete.hasFocus !== undefined && !autoComplete.hasFocus)) {
                         e.preventDefault();
                         // Clone options object and set the used delimiter.
-                        autoComplete = new AutoComplete(ed, $.extend({}, autoCompleteData, { delimiter: autoCompleteData.delimiter[delimiterIndex] }));
+
+                        var editorRange = ed.selection.getRng(); // get range object for the current caret position
+
+                        var node = editorRange.commonAncestorContainer; // relative node to the selection
+
+                        var range = document.createRange(); // create a new range object for the deletion
+                        range.selectNodeContents(node);
+                        range.setStart(node, editorRange.endOffset - 1); // current caret pos - 3
+                        range.setEnd(node, editorRange.endOffset); // current caret pos
+                        range.deleteContents();
+
+                        ed.focus();
+
+                        autoComplete = new AutoComplete(ed, $.extend({}, autoCompleteData, { delimiter: autoCompleteData.delimiter[delimiterIndex()] }));
                     }
                 }
             });
-
         },
 
         getInfo: function () {
